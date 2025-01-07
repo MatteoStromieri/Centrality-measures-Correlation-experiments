@@ -201,6 +201,32 @@ def compute_subgraph_centralities(graph, center, sample_size):
 
     return scores, t_scores
 
+def compute_subgraph_centralities_new(graph, center, sample_size):
+    """
+    Compute the harmonic centrality of a subgraph with n nodes.
+
+    Parameters:
+        graph (networkx.Graph): The original graph.
+        n (int): Number of nodes in the subgraph.
+
+    Returns:
+        dict: A dictionary with harmonic centralities and truncated centralities.
+    """
+    # Select a subgraph with n random nodes
+    sampled_nodes = bfs_first_h_nodes(graph, center, sample_size)
+    #print(f"Sampled nodes = {sampled_nodes}")
+    
+    # Compute harmonic centrality for nodes in the original graph
+    scores = nx.harmonic_centrality(graph, nbunch=sampled_nodes)
+    t_harmonic_centrality = truncated_harmonic_centrality(graph, nbunch=sampled_nodes, radius=2)
+    t1_harmonic_centrality = graph.degree(sampled_nodes)
+
+
+    t_scores = dict(zip(sampled_nodes,t_harmonic_centrality))
+    t1_scores = dict(t1_harmonic_centrality)
+
+    return scores, t_scores, t1_scores
+
 def bfs_first_h_nodes(graph, start_node, h):
     """
     Perform a breadth-first search (BFS) on a graph and return the first h nodes explored.
@@ -252,29 +278,54 @@ def experiments_gnp(n,p,d):
     c = len(n)
     corr_matrix = np.zeros((r,c,d))
     kendall_matrix = np.zeros((r,c,d))
+    corr_matrix1 = np.zeros((r,c,d))
+    kendall_matrix1 = np.zeros((r,c,d))
     for n_i, n_val in enumerate(n):
         for p_i, p_val in enumerate(p):
             for i in range(d):
                 print(f"Number of nodes: {n_val}/{n} | Probabilities: {p_val}/{p} | Iteration: {i+1}/{d}")
                 graph = nx.gnp_random_graph(n_val, p_val)
                 node = sample(list(graph.nodes()), 1)[0]
-                centralities, t_centralities = compute_subgraph_centralities(graph, node, sample_size = SAMPLE_SIZE)
+                centralities, t_centralities, t1_centralities = compute_subgraph_centralities_new(graph, node, sample_size = SAMPLE_SIZE)
                 rank = sorted(centralities.items(), key=lambda x: x[1], reverse=True)
                 t_rank = sorted(t_centralities.items(), key=lambda x: x[1], reverse=True)
+                t1_rank = sorted(t1_centralities.items(), key=lambda x: x[1], reverse=True)
                 spearman_rank_corr_val = spearman_rank_correlation(rank, t_rank)
                 kendalls_tau_val = kendalls_tau(rank, t_rank)
+                spearman_rank_corr_val1 = spearman_rank_correlation(rank, t1_rank)
+                kendalls_tau_val1 = kendalls_tau(rank, t1_rank)
                 corr_matrix[p_i, n_i, i] = spearman_rank_corr_val
                 kendall_matrix[p_i, n_i, i] = kendalls_tau_val
-    np.save("output_corr", corr_matrix)
-    np.save("output_kendall", kendall_matrix)
+                corr_matrix1[p_i, n_i, i] = spearman_rank_corr_val1
+                kendall_matrix1[p_i, n_i, i] = kendalls_tau_val1
+    err_corr_matrix = np.power(corr_matrix - corr_matrix1,2)
+    err_kendall_matrix = np.power(kendall_matrix - kendall_matrix1,2)
+    np.save("gnp_output_corr", corr_matrix)
+    np.save("gnp_output_kendall", kendall_matrix)
+    np.save("gnp_output_corr1", corr_matrix1)
+    np.save("gnp_output_kendall1", kendall_matrix1)
+    np.save("gnp_err_corr_matrix", err_corr_matrix)
+    np.save("gnp_err_kendall_matrix", err_kendall_matrix)
     avg_corr_matrix = np.mean(corr_matrix, axis=2)
     std_corr_matrix = np.std(corr_matrix, axis=2)
     avg_kendall_matrix = np.mean(kendall_matrix, axis=2)
     std_kendall_matrix = np.std(kendall_matrix, axis=2)
-    generate_and_save_heatmap(avg_corr_matrix, xticklabels=n, yticklabels=p, filename="avg_corr_matrix")
-    generate_and_save_heatmap(std_corr_matrix, xticklabels=n, yticklabels=p, filename="std_corr_matrix")
-    generate_and_save_heatmap(avg_kendall_matrix, xticklabels=n, yticklabels=p, filename="avg_kendall_matrix")
-    generate_and_save_heatmap(std_kendall_matrix, xticklabels=n, yticklabels=p, filename="std_kendall_matrix")
+    avg_corr_matrix1 = np.mean(corr_matrix1, axis=2)
+    std_corr_matrix1 = np.std(corr_matrix1, axis=2)
+    avg_kendall_matrix1 = np.mean(kendall_matrix1, axis=2)
+    std_kendall_matrix1 = np.std(kendall_matrix1, axis=2)
+    avg_err_corr_matrix = np.mean(err_corr_matrix, axis=2)
+    avg_err_kendall_matrix = np.mean(err_kendall_matrix, axis=2)
+    generate_and_save_heatmap(avg_corr_matrix, xticklabels=n, yticklabels=p, filename="gnp_avg_corr_matrix")
+    generate_and_save_heatmap(std_corr_matrix, xticklabels=n, yticklabels=p, filename="gnp_std_corr_matrix")
+    generate_and_save_heatmap(avg_kendall_matrix, xticklabels=n, yticklabels=p, filename="gnp_avg_kendall_matrix")
+    generate_and_save_heatmap(std_kendall_matrix, xticklabels=n, yticklabels=p, filename="gnp_std_kendall_matrix")
+    generate_and_save_heatmap(avg_corr_matrix1, xticklabels=n, yticklabels=p, filename="gnp_avg_corr_matrix1")
+    generate_and_save_heatmap(std_corr_matrix1, xticklabels=n, yticklabels=p, filename="gnp_std_corr_matrix1")
+    generate_and_save_heatmap(avg_kendall_matrix1, xticklabels=n, yticklabels=p, filename="gnp_avg_kendall_matrix1")
+    generate_and_save_heatmap(std_kendall_matrix1, xticklabels=n, yticklabels=p, filename="gnp_std_kendall_matrix1")
+    generate_and_save_heatmap(avg_err_corr_matrix, xticklabels=n, yticklabels=p, filename="gnp_avg_err_corr_matrix")
+    generate_and_save_heatmap(avg_err_kendall_matrix, xticklabels=n, yticklabels=p, filename="gnp_avg_err_kendall_matrix")
 
 def experiments_watts_strogatz(k,n,p,d):
     """
@@ -289,35 +340,72 @@ def experiments_watts_strogatz(k,n,p,d):
         print(f"Value of k = {k_val} ")
         corr_matrix = np.zeros((r,c,d))
         kendall_matrix = np.zeros((r,c,d))
+        corr_matrix1 = np.zeros((r,c,d))
+        kendall_matrix1 = np.zeros((r,c,d))
         for n_i, n_val in enumerate(n):
             for p_i, p_val in enumerate(p):
                 for i in range(d):
                     print(f"Number of nodes: {n_val}/{n} | Probabilities: {p_val}/{p} | Iteration: {i+1}/{d}")
                     graph = nx.gnp_random_graph(n_val, p_val)
                     node = sample(list(graph.nodes()), 1)[0]
-                    centralities, t_centralities = compute_subgraph_centralities(graph, node, sample_size = SAMPLE_SIZE)
+                    centralities, t_centralities, t1_centralities = compute_subgraph_centralities_new(graph, node, sample_size = SAMPLE_SIZE)
                     rank = sorted(centralities.items(), key=lambda x: x[1], reverse=True)
                     t_rank = sorted(t_centralities.items(), key=lambda x: x[1], reverse=True)
+                    t1_rank = sorted(t1_centralities.items(), key=lambda x: x[1], reverse=True)
                     spearman_rank_corr_val = spearman_rank_correlation(rank, t_rank)
                     kendalls_tau_val = kendalls_tau(rank, t_rank)
+                    spearman_rank_corr_val1 = spearman_rank_correlation(rank, t1_rank)
+                    kendalls_tau_val1 = kendalls_tau(rank, t1_rank)
                     corr_matrix[p_i, n_i, i] = spearman_rank_corr_val
                     kendall_matrix[p_i, n_i, i] = kendalls_tau_val
+                    corr_matrix1[p_i, n_i, i] = spearman_rank_corr_val1
+                    kendall_matrix1[p_i, n_i, i] = kendalls_tau_val1
+        err_corr_matrix = np.power(corr_matrix - corr_matrix1,2)
+        err_kendall_matrix = np.power(kendall_matrix - kendall_matrix1,2)
         corr_name = "output_corr_k=" + str(k_val) 
         kendall_name = "output_kendall_k" + str(k_val)
-        filename_1 = "avg_corr_matrix_k" + str(k_val) 
-        filename_2 = "std_corr_matrix" + str(k_val)
-        filename_3 = "avg_kendall_matrix" + str(k_val)
-        filename_4 = "std_kendall_matrix" + str(k_val)
+        corr_name1 = "output_corr_1k=" + str(k_val) 
+        kendall_name1 = "output_kendall_1k" + str(k_val)
+        err_corr_matrix_name = "err_corr_matrix_name_k="+str(k_val)  
+        err_kendall_matrix_name = "err_kendall_matrix_name_k="+str(k_val)  
+        filename_1 = "ws_avg_corr_matrix_k=" + str(k_val) 
+        filename_2 = "ws_std_corr_matrix_k=" + str(k_val)
+        filename_3 = "ws_avg_kendall_matrix_k=" + str(k_val)
+        filename_4 = "ws_std_kendall_matrix_k=" + str(k_val)
+        filename_5 = "ws_avg_corr_matrix_1k=" + str(k_val)
+        filename_6 = "ws_std_corr_matrix_1k=" + str(k_val)
+        filename_7 ="ws_avg_kendall_matrix_1k=" + str(k_val)
+        filename_8 = "ws_std_kendall_matrix_1k=" + str(k_val)
+        filename_9 = "ws_avg_err_corr_matrix_1k=" + str(k_val)
+        filename_10 = "ws_avg_err_kendall_matrix_1k=" + str(k_val)
         np.save(corr_name, corr_matrix)
         np.save(kendall_name, kendall_matrix)
+        np.save(corr_name1, corr_matrix1)
+        np.save(kendall_name1, kendall_matrix1)
+        np.save(err_corr_matrix_name, err_corr_matrix)
+        np.save(err_kendall_matrix_name, err_kendall_matrix)
         avg_corr_matrix = np.mean(corr_matrix, axis=2)
         std_corr_matrix = np.std(corr_matrix, axis=2)
         avg_kendall_matrix = np.mean(kendall_matrix, axis=2)
         std_kendall_matrix = np.std(kendall_matrix, axis=2)
+        avg_corr_matrix1 = np.mean(corr_matrix1, axis=2)
+        std_corr_matrix1 = np.std(corr_matrix1, axis=2)
+        avg_kendall_matrix1 = np.mean(kendall_matrix1, axis=2)
+        std_kendall_matrix1 = np.std(kendall_matrix1, axis=2)
+        avg_err_corr_matrix = np.mean(err_corr_matrix, axis=2)
+        avg_err_kendall_matrix = np.mean(err_kendall_matrix, axis=2)
         generate_and_save_heatmap(avg_corr_matrix, xticklabels=n, yticklabels=p, filename=filename_1)
         generate_and_save_heatmap(std_corr_matrix, xticklabels=n, yticklabels=p, filename=filename_2)
         generate_and_save_heatmap(avg_kendall_matrix, xticklabels=n, yticklabels=p, filename=filename_3)
         generate_and_save_heatmap(std_kendall_matrix, xticklabels=n, yticklabels=p, filename=filename_4)
+        generate_and_save_heatmap(avg_corr_matrix1, xticklabels=n, yticklabels=p, filename=filename_5)
+        generate_and_save_heatmap(std_corr_matrix1, xticklabels=n, yticklabels=p, filename=filename_6)
+        generate_and_save_heatmap(avg_kendall_matrix1, xticklabels=n, yticklabels=p, filename=filename_7)
+        generate_and_save_heatmap(std_kendall_matrix1, xticklabels=n, yticklabels=p, filename=filename_8)
+        generate_and_save_heatmap(avg_err_corr_matrix, xticklabels=n, yticklabels=p, filename=filename_9)
+        generate_and_save_heatmap(avg_err_kendall_matrix, xticklabels=n, yticklabels=p, filename=filename_10)
+
+
 
 def experiments_regular_graphs(n,degree,d):
     """
@@ -331,6 +419,8 @@ def experiments_regular_graphs(n,degree,d):
     
     corr_matrix = np.zeros((r,c,d))
     kendall_matrix = np.zeros((r,c,d))
+    corr_matrix1 = np.zeros((r,c,d))
+    kendall_matrix1 = np.zeros((r,c,d))
     for n_i, n_val in enumerate(n):
         for p_i, p_val in enumerate(degree):
             if p_val == "$":
@@ -346,29 +436,59 @@ def experiments_regular_graphs(n,degree,d):
                 print(f"Number of nodes: {n_val}/{n} | Probabilities: {p_val}/{degree} | Iteration: {i+1}/{d}")
                 graph = nx.random_regular_graph(p_val, n_val)
                 node = sample(list(graph.nodes()), 1)[0]
-                centralities, t_centralities = compute_subgraph_centralities(graph, node, sample_size = SAMPLE_SIZE)
+                centralities, t_centralities, t1_centralities = compute_subgraph_centralities_new(graph, node, sample_size = SAMPLE_SIZE)
                 rank = sorted(centralities.items(), key=lambda x: x[1], reverse=True)
                 t_rank = sorted(t_centralities.items(), key=lambda x: x[1], reverse=True)
+                t1_rank = sorted(t1_centralities.items(), key=lambda x: x[1], reverse=True)
                 spearman_rank_corr_val = spearman_rank_correlation(rank, t_rank)
                 kendalls_tau_val = kendalls_tau(rank, t_rank)
+                spearman_rank_corr_val1 = spearman_rank_correlation(rank, t1_rank)
+                kendalls_tau_val1 = kendalls_tau(rank, t1_rank)
                 corr_matrix[p_i, n_i, i] = spearman_rank_corr_val
                 kendall_matrix[p_i, n_i, i] = kendalls_tau_val
-    corr_name = "output_corr_regular" 
-    kendall_name = "output_kendall_regular"
-    filename_1 = "avg_corr_matrix_regular" 
-    filename_2 = "std_corr_regular" 
-    filename_3 = "avg_kendall_regular"
-    filename_4 = "std_kendall_regular"
+                corr_matrix1[p_i, n_i, i] = spearman_rank_corr_val1
+                kendall_matrix1[p_i, n_i, i] = kendalls_tau_val1
+    err_corr_matrix = np.power(corr_matrix - corr_matrix1,2)
+    err_kendall_matrix = np.power(kendall_matrix - kendall_matrix1,2)
+    corr_name = "reg_output_corr_regular" 
+    kendall_name = "reg_output_kendall_regular"
+    corr_name1 = "reg_output_corr_regular1" 
+    kendall_name1 = "reg_output_kendall_regular1"
+    filename_1 = "reg_avg_corr_matrix_regular" 
+    filename_2 = "reg_std_corr_regular" 
+    filename_3 = "reg_avg_kendall_regular"
+    filename_4 = "reg_std_kendall_regular"
+    filename_5 = "reg_avg_corr_matrix_regular1" 
+    filename_6 = "reg_std_corr_regular1" 
+    filename_7 = "reg_avg_kendall_regular1"
+    filename_8 = "reg_std_kendall_regular1"
+    filename_9 = "reg_avg_err_corr_matrix1"
+    filename_10 = "reg_avg_err_kendall_matrix1"
     np.save(corr_name, corr_matrix)
     np.save(kendall_name, kendall_matrix)
+    np.save(corr_name1, corr_matrix1)
+    np.save(kendall_name1, kendall_matrix1)
     avg_corr_matrix = np.mean(corr_matrix, axis=2)
     std_corr_matrix = np.std(corr_matrix, axis=2)
     avg_kendall_matrix = np.mean(kendall_matrix, axis=2)
     std_kendall_matrix = np.std(kendall_matrix, axis=2)
+    avg_corr_matrix1 = np.mean(corr_matrix1, axis=2)
+    std_corr_matrix1 = np.std(corr_matrix1, axis=2)
+    avg_kendall_matrix1 = np.mean(kendall_matrix1, axis=2)
+    std_kendall_matrix1 = np.std(kendall_matrix1, axis=2)
+    avg_err_corr_matrix = np.mean(err_corr_matrix, axis=2)
+    avg_err_kendall_matrix = np.mean(err_kendall_matrix, axis=2)
     generate_and_save_heatmap(avg_corr_matrix, xticklabels=n, yticklabels=degree, filename=filename_1)
     generate_and_save_heatmap(std_corr_matrix, xticklabels=n, yticklabels=degree, filename=filename_2)
     generate_and_save_heatmap(avg_kendall_matrix, xticklabels=n, yticklabels=degree, filename=filename_3)
     generate_and_save_heatmap(std_kendall_matrix, xticklabels=n, yticklabels=degree, filename=filename_4)
+    generate_and_save_heatmap(avg_corr_matrix1, xticklabels=n, yticklabels=degree, filename=filename_5)
+    generate_and_save_heatmap(std_corr_matrix1, xticklabels=n, yticklabels=degree, filename=filename_6)
+    generate_and_save_heatmap(avg_kendall_matrix1, xticklabels=n, yticklabels=degree, filename=filename_7)
+    generate_and_save_heatmap(std_kendall_matrix1, xticklabels=n, yticklabels=degree, filename=filename_8)
+    generate_and_save_heatmap(avg_err_corr_matrix, xticklabels=n, yticklabels=degree, filename=filename_9)
+    generate_and_save_heatmap(avg_err_kendall_matrix, xticklabels=n, yticklabels=degree, filename=filename_10)
+
 
 def experiments_barabasi_albert(n,m,d):
     """
@@ -382,6 +502,8 @@ def experiments_barabasi_albert(n,m,d):
     
     corr_matrix = np.zeros((r,c,d))
     kendall_matrix = np.zeros((r,c,d))
+    corr_matrix1 = np.zeros((r,c,d))
+    kendall_matrix1 = np.zeros((r,c,d))
     for n_i, n_val in enumerate(n):
         for p_i, p_val in enumerate(m):
             if p_val == "$":
@@ -397,38 +519,69 @@ def experiments_barabasi_albert(n,m,d):
                 print(f"Number of nodes: {n_val}/{n} | Probabilities: {p_val}/{m} | Iteration: {i+1}/{d}")
                 graph = nx.barabasi_albert_graph(n_val, p_val)
                 node = sample(list(graph.nodes()), 1)[0]
-                centralities, t_centralities = compute_subgraph_centralities(graph, node, sample_size = SAMPLE_SIZE)
+                centralities, t_centralities, t1_centralities = compute_subgraph_centralities_new(graph, node, sample_size = SAMPLE_SIZE)
                 rank = sorted(centralities.items(), key=lambda x: x[1], reverse=True)
                 t_rank = sorted(t_centralities.items(), key=lambda x: x[1], reverse=True)
+                t1_rank = sorted(t1_centralities.items(), key=lambda x: x[1], reverse=True)
                 spearman_rank_corr_val = spearman_rank_correlation(rank, t_rank)
                 kendalls_tau_val = kendalls_tau(rank, t_rank)
+                spearman_rank_corr_val1 = spearman_rank_correlation(rank, t1_rank)
+                kendalls_tau_val1 = kendalls_tau(rank, t1_rank)
                 corr_matrix[p_i, n_i, i] = spearman_rank_corr_val
                 kendall_matrix[p_i, n_i, i] = kendalls_tau_val
+                corr_matrix1[p_i, n_i, i] = spearman_rank_corr_val1
+                kendall_matrix1[p_i, n_i, i] = kendalls_tau_val1
+    err_corr_matrix = np.power(corr_matrix - corr_matrix1,2)
+    err_kendall_matrix = np.power(kendall_matrix - kendall_matrix1,2)
     corr_name = "output_corr_barabasi_albert" 
     kendall_name = "output_kendall_barabasi_albert"
+    corr_name1 = "output_corr_regular_barabasi_albert1" 
+    kendall_name1 = "output_kendall_barabasi_alber1"
     filename_1 = "avg_corr_matrix_barabasi_albert" 
     filename_2 = "std_corr_barabasi_albert" 
     filename_3 = "avg_kendall_barabasi_albert"
     filename_4 = "std_kendall_barabasi_albert"
+    filename_5 = "avg_corr_matrix_barabasi_albert1" 
+    filename_6 = "std_corr_barabasi_albert1" 
+    filename_7 = "avg_kendall_barabasi_albert1"
+    filename_8 = "std_kendall_barabasi_albert1"
+    filename_9 = "avg_err_corr_barabasi_albert1"
+    filename_10 = "avg_err_kendall_barabasi_albert1"
     np.save(corr_name, corr_matrix)
     np.save(kendall_name, kendall_matrix)
+    np.save(corr_name1, corr_matrix1)
+    np.save(kendall_name1, kendall_matrix1)
     avg_corr_matrix = np.mean(corr_matrix, axis=2)
     std_corr_matrix = np.std(corr_matrix, axis=2)
     avg_kendall_matrix = np.mean(kendall_matrix, axis=2)
     std_kendall_matrix = np.std(kendall_matrix, axis=2)
+    avg_corr_matrix1 = np.mean(corr_matrix1, axis=2)
+    std_corr_matrix1 = np.std(corr_matrix1, axis=2)
+    avg_kendall_matrix1 = np.mean(kendall_matrix1, axis=2)
+    std_kendall_matrix1 = np.std(kendall_matrix1, axis=2)
+    avg_err_corr_matrix = np.mean(err_corr_matrix, axis=2)
+    avg_err_kendall_matrix = np.mean(err_kendall_matrix, axis=2)
     generate_and_save_heatmap(avg_corr_matrix, xticklabels=n, yticklabels=m, filename=filename_1)
     generate_and_save_heatmap(std_corr_matrix, xticklabels=n, yticklabels=m, filename=filename_2)
     generate_and_save_heatmap(avg_kendall_matrix, xticklabels=n, yticklabels=m, filename=filename_3)
     generate_and_save_heatmap(std_kendall_matrix, xticklabels=n, yticklabels=m, filename=filename_4)
+    generate_and_save_heatmap(avg_corr_matrix1, xticklabels=n, yticklabels=m, filename=filename_5)
+    generate_and_save_heatmap(std_corr_matrix1, xticklabels=n, yticklabels=m, filename=filename_6)
+    generate_and_save_heatmap(avg_kendall_matrix1, xticklabels=n, yticklabels=m, filename=filename_7)
+    generate_and_save_heatmap(std_kendall_matrix1, xticklabels=n, yticklabels=m, filename=filename_8)
+    generate_and_save_heatmap(avg_err_corr_matrix, xticklabels=n, yticklabels=m, filename=filename_9)
+    generate_and_save_heatmap(avg_err_kendall_matrix, xticklabels=n, yticklabels=m, filename=filename_10)
+
+
 
 
 if __name__ == "__main__":
     #corr_matrix, kendall_matrix = experiments_gnp(n = [100, 1000], p = [0.01, 0.1], d = 10)
     
     experiments_gnp(n = [100,500,1000,2500], p = [0.001, 0.01, 0.1], d = ITERATIONS)
-    experiments_watts_strogatz(k = [1,2,3,5,10], n = [100,500,1000,2500], p = [0.001, 0.01, 0.1], d = ITERATIONS)
-    experiments_regular_graphs(n = [100,500,1000,2500], degree = ["$",1/100,1/50,1/25,2/25,4/25,8/25], d = ITERATIONS)
-    experiments_barabasi_albert(n = [100,500,1000,2500], m = ["$",1/100,1/50,1/25,2/25,4/25,8/25], d = ITERATIONS)
+    #experiments_watts_strogatz(k = [1,2,3,5,10], n = [100,500,1000,2500], p = [0.001, 0.01, 0.1], d = ITERATIONS)
+    #experiments_regular_graphs(n = [100,500,1000,2500], degree = ["$",1/100,1/50,1/25,2/25,4/25,8/25], d = ITERATIONS)
+    #experiments_barabasi_albert(n = [100,500,1000,2500], m = ["$",1/100,1/50,1/25,2/25,4/25,8/25], d = ITERATIONS)
     
     """
     corr_matrix = np.load("output_corr.npy")
